@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type Handler struct {
@@ -55,7 +54,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
+	hashed, err := utils.HashPassword(payload.Password)
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
@@ -64,7 +63,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	user := types.User{
 		Username: payload.Username,
 		Email:    payload.Email,
-		Password: string(hashed),
+		Password: hashed,
 	}
 
 	userID, err := h.store.CreateUser(user)
@@ -124,7 +123,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(payload.Password)) != nil {
+	if !utils.CheckPassword(u.Password, payload.Password) {
 		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid credentials"))
 		return
 	}
@@ -156,6 +155,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"message":      "login successfully",
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
+		"user": map[string]any{
+			"id":        u.ID,
+			"username":  u.Username,
+			"email":     u.Email,
+			"createdAt": u.CreatedAt,
+		},
 	})
 }
 
@@ -293,18 +298,18 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(payload.CurrentPassword)) != nil {
+	if !utils.CheckPassword(u.Password, payload.CurrentPassword) {
 		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid current password"))
 		return
 	}
 
-	newHash, err := bcrypt.GenerateFromPassword([]byte(payload.NewPassword), bcrypt.DefaultCost)
+	newHash, err := utils.HashPassword(payload.NewPassword)
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	if err := h.store.UpdatePassword(userID, string(newHash)); err != nil {
+	if err := h.store.UpdatePassword(userID, newHash); err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
