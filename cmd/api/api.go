@@ -24,6 +24,7 @@ func (s *APIServer) Run() error {
 
 	router.Use(utils.CORS)
 	router.Use(utils.LoggingMiddleware)
+	router.Use(utils.GzipMiddleware)
 
 	subrouter := router.PathPrefix("/api/v1").Subrouter()
 
