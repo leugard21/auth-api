@@ -23,6 +23,7 @@ type UserStore interface {
 	SaveRefreshToken(userID int, token string, expiresAt time.Time) error
 	RevokeRefreshToken(token string) error
 	IsRefreshTokenValid(token string) (bool, error)
+	RevokeAllRefreshTokensForUser(userID int) error
 }
 
 type RegisterUserPayload struct {

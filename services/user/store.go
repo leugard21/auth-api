@@ -159,3 +159,14 @@ func (s *Store) IsRefreshTokenValid(token string) (bool, error) {
 
 	return true, nil
 }
+
+func (s *Store) RevokeAllRefreshTokensForUser(userID int) error {
+	_, err := s.db.Exec(
+		`UPDATE refresh_tokens
+           SET revoked = TRUE
+         WHERE user_id = $1
+           AND revoked = FALSE`,
+		userID,
+	)
+	return err
+}

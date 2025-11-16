@@ -305,7 +305,12 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.store.RevokeAllRefreshTokensForUser(userID); err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"message": "password changed successfully",
+		"message": "password changed successfully, all sessions have been logged out",
 	})
 }
