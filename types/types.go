@@ -1,6 +1,8 @@
 package types
 
-import "time"
+import (
+	"time"
+)
 
 type User struct {
 	ID        int       `json:"id"`
@@ -11,7 +13,7 @@ type User struct {
 }
 
 type UserStore interface {
-	CreateUser(User) error
+	CreateUser(user User) (int, error)
 	GetUserByEmail(email string) (*User, error)
 	GetUserByUsername(username string) (*User, error)
 }

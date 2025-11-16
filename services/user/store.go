@@ -13,14 +13,21 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-func (s *Store) CreateUser(user types.User) error {
-	_, err := s.db.Exec(
-		"INSERT INTO users (username, email, password) VALUES ($1, $2, $3)",
+func (s *Store) CreateUser(user types.User) (int, error) {
+	var userID int
+
+	err := s.db.QueryRow(
+		"INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id",
 		user.Username,
 		user.Email,
 		user.Password,
-	)
-	return err
+	).Scan(&userID)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return userID, nil
 }
 
 func (s *Store) GetUserByEmail(email string) (*types.User, error) {

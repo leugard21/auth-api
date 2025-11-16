@@ -35,6 +35,16 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if existing, err := h.store.GetUserByEmail(payload.Email); err == nil && existing != nil {
+		utils.WriteError(w, http.StatusBadRequest, errors.New("email already exists"))
+		return
+	}
+
+	if existing, err := h.store.GetUserByUsername(payload.Username); err == nil && existing != nil {
+		utils.WriteError(w, http.StatusBadRequest, errors.New("username already exists"))
+		return
+	}
+
 	hashed, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
@@ -47,13 +57,28 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Password: string(hashed),
 	}
 
-	if err := h.store.CreateUser(user); err != nil {
+	userID, err := h.store.CreateUser(user)
+	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]string{
-		"message": "registered successfully",
+	accessToken, err := utils.GenerateAccessToken(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, map[string]any{
+		"message":      "registered successfully",
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
 	})
 }
 
@@ -83,7 +108,21 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accessToken, err := utils.GenerateAccessToken(u.ID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(u.ID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"message": "login successfully",
+		"message":      "login successfully",
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
 	})
 }
