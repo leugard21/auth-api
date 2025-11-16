@@ -103,12 +103,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid username or email"))
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid credentials"))
 		return
 	}
 
 	if bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(payload.Password)) != nil {
-		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid password"))
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid credentials"))
 		return
 	}
 
@@ -165,18 +165,18 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 	claims, err := utils.ParseToken(payload.RefreshToken)
 	if err != nil {
-		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid or expired token"))
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token"))
 		return
 	}
 
 	if claims.TokenType != "refresh" {
-		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token type"))
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token"))
 		return
 	}
 
 	userID, err := strconv.Atoi(claims.Subject)
 	if err != nil || userID <= 0 {
-		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token subject"))
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token"))
 		return
 	}
 
