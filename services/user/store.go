@@ -103,6 +103,17 @@ func (s *Store) GetUserByID(id int) (*types.User, error) {
 	return &u, nil
 }
 
+func (s *Store) UpdatePassword(userID int, newPasswordHash string) error {
+	_, err := s.db.Exec(
+		`UPDATE users
+           SET password = $1
+         WHERE id = $2`,
+		newPasswordHash,
+		userID,
+	)
+	return err
+}
+
 func (s *Store) SaveRefreshToken(userID int, token string, expiresAt time.Time) error {
 	_, err := s.db.Exec(
 		`INSERT INTO refresh (user_id, token, expires_at)

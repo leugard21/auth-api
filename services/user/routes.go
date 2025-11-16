@@ -27,6 +27,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/logout", h.handleLogout).Methods("POST")
 
 	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
+	router.Handle("/change-password", utils.AuthMiddleware(http.HandlerFunc(h.handleChangePassword))).Methods("POST")
 }
 
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -258,5 +259,53 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
 		"message": "logged out",
+	})
+}
+
+func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := utils.GetUserIDFromContext(r.Context())
+	if !ok {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	var payload types.ChangePasswordPayload
+	if err := utils.ParseJSON(r, &payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := utils.Validate.Struct(payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	u, err := h.store.GetUserByID(userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+			return
+		}
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(payload.CurrentPassword)) != nil {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid current password"))
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(payload.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := h.store.UpdatePassword(userID, string(newHash)); err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"message": "password changed successfully",
 	})
 }

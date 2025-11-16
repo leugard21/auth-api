@@ -18,6 +18,8 @@ type UserStore interface {
 	GetUserByUsername(username string) (*User, error)
 	GetUserByID(id int) (*User, error)
 
+	UpdatePassword(userID int, newPasswordHash string) error
+
 	SaveRefreshToken(userID int, token string, expiresAt time.Time) error
 	RevokeRefreshToken(token string) error
 	IsRefreshTokenValid(token string) (bool, error)
@@ -36,4 +38,9 @@ type LoginPayload struct {
 
 type RefreshPayload struct {
 	RefreshToken string `json:"refreshToken" validate:"required"`
+}
+
+type ChangePasswordPayload struct {
+	CurrentPassword string `json:"currentPassword" validate:"required"`
+	NewPassword     string `json:"newPassword" validate:"required,min=6,max=130"`
 }
