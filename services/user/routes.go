@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -21,12 +22,15 @@ func NewHandler(store types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/register", h.handleRegister).Methods("POST")
-	router.HandleFunc("/login", h.handleLogin).Methods("POST")
+	router.Handle("/register", utils.RateLimit(5, 1*time.Minute)(http.HandlerFunc(h.handleRegister))).Methods("POST")
+
+	router.Handle("/login", utils.RateLimit(10, 1*time.Minute)(http.HandlerFunc(h.handleLogin))).Methods("POST")
+
 	router.HandleFunc("/refresh", h.handleRefresh).Methods("POST")
 	router.HandleFunc("/logout", h.handleLogout).Methods("POST")
 
 	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
+
 	router.Handle("/change-password", utils.AuthMiddleware(http.HandlerFunc(h.handleChangePassword))).Methods("POST")
 }
 
