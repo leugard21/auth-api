@@ -24,6 +24,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/register", h.handleRegister).Methods("POST")
 	router.HandleFunc("/login", h.handleLogin).Methods("POST")
 	router.HandleFunc("/refresh", h.handleRefresh).Methods("POST")
+	router.HandleFunc("/logout", h.handleLogout).Methods("POST")
 
 	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
 }
@@ -79,6 +80,17 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims, err := utils.ParseToken(refreshToken)
+	if err != nil || claims.TokenType != "refresh" || claims.ExpiresAt == nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to persist refresh token"))
+		return
+	}
+
+	if err := h.store.SaveRefreshToken(userID, refreshToken, claims.ExpiresAt.Time); err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusCreated, map[string]any{
 		"message":      "registered successfully",
 		"accessToken":  accessToken,
@@ -120,6 +132,17 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	refreshToken, err := utils.GenerateRefreshToken(u.ID)
 	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	claims, err := utils.ParseToken(refreshToken)
+	if err != nil || claims.TokenType != "refresh" || claims.ExpiresAt == nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to persist refresh token"))
+		return
+	}
+
+	if err := h.store.SaveRefreshToken(u.ID, refreshToken, claims.ExpiresAt.Time); err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -174,6 +197,16 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	valid, err := h.store.IsRefreshTokenValid(payload.RefreshToken)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if !valid {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token"))
+		return
+	}
+
 	userID, err := strconv.Atoi(claims.Subject)
 	if err != nil || userID <= 0 {
 		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token"))
@@ -192,8 +225,38 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newClaims, err := utils.ParseToken(newRefreshToken)
+	if err != nil || newClaims.TokenType != "refresh" || newClaims.ExpiresAt == nil {
+		utils.WriteError(w, http.StatusInternalServerError, errors.New("failed to persist refresh token"))
+		return
+	}
+
+	_ = h.store.RevokeRefreshToken(payload.RefreshToken)
+	if err := h.store.SaveRefreshToken(userID, newRefreshToken, newClaims.ExpiresAt.Time); err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
 		"accessToken":  newAccessToken,
 		"refreshToken": newRefreshToken,
+	})
+}
+
+func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	var payload types.RefreshPayload
+	if err := utils.ParseJSON(r, &payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := utils.Validate.Struct(payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	_ = h.store.RevokeRefreshToken(payload.RefreshToken)
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"message": "logged out",
 	})
 }

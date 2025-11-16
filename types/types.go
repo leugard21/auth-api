@@ -17,6 +17,10 @@ type UserStore interface {
 	GetUserByEmail(email string) (*User, error)
 	GetUserByUsername(username string) (*User, error)
 	GetUserByID(id int) (*User, error)
+
+	SaveRefreshToken(userID int, token string, expiresAt time.Time) error
+	RevokeRefreshToken(token string) error
+	IsRefreshTokenValid(token string) (bool, error)
 }
 
 type RegisterUserPayload struct {

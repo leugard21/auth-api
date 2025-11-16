@@ -3,6 +3,7 @@ package user
 import (
 	"auth-api/types"
 	"database/sql"
+	"time"
 )
 
 type Store struct {
@@ -100,4 +101,50 @@ func (s *Store) GetUserByID(id int) (*types.User, error) {
 	}
 
 	return &u, nil
+}
+
+func (s *Store) SaveRefreshToken(userID int, token string, expiresAt time.Time) error {
+	_, err := s.db.Exec(
+		`INSERT INTO refresh (user_id, token, expires_at)
+         VALUES ($1, $2, $3)`,
+		userID,
+		token,
+		expiresAt,
+	)
+	return err
+}
+
+func (s *Store) RevokeRefreshToken(token string) error {
+	_, err := s.db.Exec(
+		`UPDATE refresh
+           SET revoked = TRUE
+         WHERE token = $1`,
+		token,
+	)
+	return err
+}
+
+func (s *Store) IsRefreshTokenValid(token string) (bool, error) {
+	var revoked bool
+	var expiresAt time.Time
+
+	err := s.db.QueryRow(
+		`SELECT revoked, expires_at
+           FROM refresh
+          WHERE token = $1`,
+		token,
+	).Scan(&revoked, &expiresAt)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	if revoked || time.Now().UTC().After(expiresAt) {
+		return false, nil
+	}
+
+	return true, nil
 }
