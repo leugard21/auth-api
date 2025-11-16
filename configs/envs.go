@@ -15,6 +15,7 @@ type Config struct {
 	DBHost     string
 	DBPort     string
 	DBName     string
+	JWTSecret  string
 }
 
 var Envs Config
@@ -32,5 +33,6 @@ func init() {
 		DBHost:     os.Getenv("DB_HOST"),
 		DBPort:     os.Getenv("DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
+		JWTSecret:  os.Getenv("JWT_SECRET"),
 	}
 }
