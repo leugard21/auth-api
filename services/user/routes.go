@@ -22,15 +22,15 @@ func NewHandler(store types.UserStore) *Handler {
 
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.Handle("/register", utils.RateLimit(5, 1*time.Minute)(http.HandlerFunc(h.handleRegister))).Methods("POST")
-
 	router.Handle("/login", utils.RateLimit(10, 1*time.Minute)(http.HandlerFunc(h.handleLogin))).Methods("POST")
-
 	router.HandleFunc("/refresh", h.handleRefresh).Methods("POST")
 	router.HandleFunc("/logout", h.handleLogout).Methods("POST")
 
-	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
-
+	router.Handle("/me",
+		utils.AuthMiddleware(http.HandlerFunc(h.handleMe)),
+	).Methods("GET")
 	router.Handle("/change-password", utils.AuthMiddleware(http.HandlerFunc(h.handleChangePassword))).Methods("POST")
+	router.Handle("/users", utils.AuthMiddleware(http.HandlerFunc(h.handleListUsers))).Methods("GET")
 }
 
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +64,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Username: payload.Username,
 		Email:    payload.Email,
 		Password: hashed,
+		Role:     "user",
 	}
 
 	userID, err := h.store.CreateUser(user)
@@ -155,12 +156,6 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"message":      "login successfully",
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
-		"user": map[string]any{
-			"id":        u.ID,
-			"username":  u.Username,
-			"email":     u.Email,
-			"createdAt": u.CreatedAt,
-		},
 	})
 }
 
@@ -173,6 +168,10 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.store.GetUserByID(userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.WriteError(w, http.StatusNotFound, errors.New("user not found"))
+			return
+		}
 		utils.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -181,6 +180,7 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 		"id":        u.ID,
 		"username":  u.Username,
 		"email":     u.Email,
+		"role":      u.Role,
 		"createdAt": u.CreatedAt,
 	})
 }
@@ -322,4 +322,42 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusOK, map[string]any{
 		"message": "password changed successfully, all sessions have been logged out",
 	})
+}
+
+func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	userID, ok := utils.GetUserIDFromContext(r.Context())
+	if !ok {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	currentUser, err := h.store.GetUserByID(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	if currentUser.Role != "admin" {
+		utils.WriteError(w, http.StatusForbidden, errors.New("forbidden"))
+		return
+	}
+
+	users, err := h.store.ListUsers()
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	resp := make([]map[string]any, 0, len(users))
+	for _, u := range users {
+		resp = append(resp, map[string]any{
+			"id":        u.ID,
+			"username":  u.Username,
+			"email":     u.Email,
+			"role":      u.Role,
+			"createdAt": u.CreatedAt,
+		})
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
 }

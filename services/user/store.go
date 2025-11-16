@@ -18,10 +18,11 @@ func (s *Store) CreateUser(user types.User) (int, error) {
 	var userID int
 
 	err := s.db.QueryRow(
-		"INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id",
+		"INSERT INTO users (username, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
 		user.Username,
 		user.Email,
 		user.Password,
+		user.Role,
 	).Scan(&userID)
 
 	if err != nil {
@@ -33,7 +34,7 @@ func (s *Store) CreateUser(user types.User) (int, error) {
 
 func (s *Store) GetUserByEmail(email string) (*types.User, error) {
 	row := s.db.QueryRow(
-		`SELECT id, username, email, password, created_at
+		`SELECT id, username, email, password, role, created_at
          FROM users
          WHERE email = $1
          LIMIT 1`,
@@ -46,6 +47,7 @@ func (s *Store) GetUserByEmail(email string) (*types.User, error) {
 		&u.Username,
 		&u.Email,
 		&u.Password,
+		&u.Role,
 		&u.CreatedAt,
 	)
 	if err != nil {
@@ -57,7 +59,7 @@ func (s *Store) GetUserByEmail(email string) (*types.User, error) {
 
 func (s *Store) GetUserByUsername(username string) (*types.User, error) {
 	row := s.db.QueryRow(
-		`SELECT id, username, email, password, created_at
+		`SELECT id, username, email, password, role, created_at
          FROM users
          WHERE username = $1
          LIMIT 1`,
@@ -70,6 +72,7 @@ func (s *Store) GetUserByUsername(username string) (*types.User, error) {
 		&u.Username,
 		&u.Email,
 		&u.Password,
+		&u.Role,
 		&u.CreatedAt,
 	)
 	if err != nil {
@@ -81,7 +84,7 @@ func (s *Store) GetUserByUsername(username string) (*types.User, error) {
 
 func (s *Store) GetUserByID(id int) (*types.User, error) {
 	row := s.db.QueryRow(
-		`SELECT id, username, email, password, created_at
+		`SELECT id, username, email, password, role, created_at
          FROM users
          WHERE id = $1
          LIMIT 1`,
@@ -94,6 +97,7 @@ func (s *Store) GetUserByID(id int) (*types.User, error) {
 		&u.Username,
 		&u.Email,
 		&u.Password,
+		&u.Role,
 		&u.CreatedAt,
 	)
 	if err != nil {
@@ -103,15 +107,38 @@ func (s *Store) GetUserByID(id int) (*types.User, error) {
 	return &u, nil
 }
 
-func (s *Store) UpdatePassword(userID int, newPasswordHash string) error {
-	_, err := s.db.Exec(
-		`UPDATE users
-           SET password = $1
-         WHERE id = $2`,
-		newPasswordHash,
-		userID,
+func (s *Store) ListUsers() ([]types.User, error) {
+	rows, err := s.db.Query(
+		`SELECT id, username, email, password, role, created_at
+         FROM users
+         ORDER BY id`,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []types.User
+	for rows.Next() {
+		var u types.User
+		if err := rows.Scan(
+			&u.ID,
+			&u.Username,
+			&u.Email,
+			&u.Password,
+			&u.Role,
+			&u.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 func (s *Store) SaveRefreshToken(userID int, token string, expiresAt time.Time) error {
@@ -158,6 +185,17 @@ func (s *Store) IsRefreshTokenValid(token string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (s *Store) UpdatePassword(userID int, newPasswordHash string) error {
+	_, err := s.db.Exec(
+		`UPDATE users
+           SET password = $1
+         WHERE id = $2`,
+		newPasswordHash,
+		userID,
+	)
+	return err
 }
 
 func (s *Store) RevokeAllRefreshTokensForUser(userID int) error {
