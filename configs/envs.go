@@ -8,14 +8,15 @@ import (
 )
 
 type Config struct {
-	PublicHost string
-	Port       string
-	DBUser     string
-	DBPassword string
-	DBHost     string
-	DBPort     string
-	DBName     string
-	JWTSecret  string
+	PublicHost         string
+	Port               string
+	DBUser             string
+	DBPassword         string
+	DBHost             string
+	DBPort             string
+	DBName             string
+	JWTSecret          string
+	CORSAllowedOrigins string
 }
 
 var Envs Config
@@ -28,13 +29,14 @@ func init() {
 	}
 
 	Envs = Config{
-		PublicHost: os.Getenv("PUBLIC_HOST"),
-		Port:       os.Getenv("PORT"),
-		DBUser:     os.Getenv("DB_USER"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     os.Getenv("DB_PORT"),
-		DBName:     os.Getenv("DB_NAME"),
-		JWTSecret:  os.Getenv("JWT_SECRET"),
+		PublicHost:         os.Getenv("PUBLIC_HOST"),
+		Port:               os.Getenv("PORT"),
+		DBUser:             os.Getenv("DB_USER"),
+		DBPassword:         os.Getenv("DB_PASSWORD"),
+		DBHost:             os.Getenv("DB_HOST"),
+		DBPort:             os.Getenv("DB_PORT"),
+		DBName:             os.Getenv("DB_NAME"),
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
 	}
 }
