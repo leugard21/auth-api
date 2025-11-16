@@ -21,8 +21,10 @@ type Config struct {
 var Envs Config
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
+	_ = godotenv.Load()
+
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		log.Println("Warning: .env file not found (using system env only)")
 	}
 
 	Envs = Config{

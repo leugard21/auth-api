@@ -162,7 +162,7 @@ func (s *Store) IsRefreshTokenValid(token string) (bool, error) {
 
 func (s *Store) RevokeAllRefreshTokensForUser(userID int) error {
 	_, err := s.db.Exec(
-		`UPDATE refresh_tokens
+		`UPDATE refresh
            SET revoked = TRUE
          WHERE user_id = $1
            AND revoked = FALSE`,
