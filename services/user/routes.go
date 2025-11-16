@@ -22,6 +22,8 @@ func NewHandler(store types.UserStore) *Handler {
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/register", h.handleRegister).Methods("POST")
 	router.HandleFunc("/login", h.handleLogin).Methods("POST")
+
+	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
 }
 
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -124,5 +126,26 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"message":      "login successfully",
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
+	})
+}
+
+func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := utils.GetUserIDFromContext(r.Context())
+	if !ok {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("unauthorized"))
+		return
+	}
+
+	u, err := h.store.GetUserByID(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"id":        u.ID,
+		"username":  u.Username,
+		"email":     u.Email,
+		"createdAt": u.CreatedAt,
 	})
 }

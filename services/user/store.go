@@ -77,3 +77,27 @@ func (s *Store) GetUserByUsername(username string) (*types.User, error) {
 
 	return &u, nil
 }
+
+func (s *Store) GetUserByID(id int) (*types.User, error) {
+	row := s.db.QueryRow(
+		`SELECT id, username, email, password, created_at
+         FROM users
+         WHERE id = $1
+         LIMIT 1`,
+		id,
+	)
+
+	var u types.User
+	err := row.Scan(
+		&u.ID,
+		&u.Username,
+		&u.Email,
+		&u.Password,
+		&u.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
