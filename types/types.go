@@ -29,3 +29,7 @@ type LoginPayload struct {
 	Identifier string `json:"identifier" validate:"required"`
 	Password   string `json:"password" validate:"required"`
 }
+
+type RefreshPayload struct {
+	RefreshToken string `json:"refreshToken" validate:"required"`
+}

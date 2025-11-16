@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -22,6 +23,7 @@ func NewHandler(store types.UserStore) *Handler {
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/register", h.handleRegister).Methods("POST")
 	router.HandleFunc("/login", h.handleLogin).Methods("POST")
+	router.HandleFunc("/refresh", h.handleRefresh).Methods("POST")
 
 	router.Handle("/me", utils.AuthMiddleware(http.HandlerFunc(h.handleMe))).Methods("GET")
 }
@@ -147,5 +149,51 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 		"username":  u.Username,
 		"email":     u.Email,
 		"createdAt": u.CreatedAt,
+	})
+}
+
+func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	var payload types.RefreshPayload
+	if err := utils.ParseJSON(r, &payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := utils.Validate.Struct(payload); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	claims, err := utils.ParseToken(payload.RefreshToken)
+	if err != nil {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid or expired token"))
+		return
+	}
+
+	if claims.TokenType != "refresh" {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token type"))
+		return
+	}
+
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil || userID <= 0 {
+		utils.WriteError(w, http.StatusUnauthorized, errors.New("invalid token subject"))
+		return
+	}
+
+	newAccessToken, err := utils.GenerateAccessToken(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	newRefreshToken, err := utils.GenerateRefreshToken(userID)
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]any{
+		"accessToken":  newAccessToken,
+		"refreshToken": newRefreshToken,
 	})
 }
